@@ -5,7 +5,7 @@
 HX711_ADC LoadCell(4, 5); // dt pin, sck pin
 LiquidCrystal_I2C lcd(0x3F, 16, 2); // LCD HEX address 0x27
 
-int button = 8;
+int button = 7;
 int buttonval;
 int prev_buttonval;
 bool measuring = false;

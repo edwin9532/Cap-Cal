@@ -64,6 +64,10 @@ void print_data(){
   float data = LoadCell.getData();
   unsigned long currentMillis = millis();
 
+  if (sample_up){
+    data = data + sample_mass;
+  }
+
   lcd_print("Tiempo: Masa:",0,0,true);
   float time = ((float)currentMillis-(float)initMillis)/1000; // Elpased time since beginning of the exp.
   lcd.setCursor(2, 1);
@@ -186,6 +190,7 @@ void loop() {
     float sample_mass = init_();
     initMillis = millis();
     start = false;
+    Serial.println("start");
   }
 
   // Temporary -- to activate leiden signal 85 seconds in
@@ -202,8 +207,9 @@ void loop() {
 
   // Lowers the sample when dT seconds have passed (from when the exp. started)
   if (currentMillis > initMillis + dT && sample_up){
-    stepper_move(-1,6,true);
-    sample_up = false;
+    stepper_move(-1,3,true); // ######## removing the sample_mass from the mass readings when halfway through the lowering (?) TBC #########################
+    sample_up = false;       // ######## Maybe just add it on the last 2 revs? Maybe use a function? ############################3
+    stepper_move(-1,3,true);
   }
 
   if (currentMillis < tstop){ // takes data
@@ -211,6 +217,7 @@ void loop() {
     delay(100);
   }
   else{
+    Serial.println("end");
     lcd_print("La toma de datos",0,0,true);
     lcd_print("ha concluido",2,1);
     stepper_move(1);
