@@ -1,3 +1,5 @@
+// cd miniconda3/envs/dig/cap-cal/
+
 #include <HX711_ADC.h> // https://github.com/olkal/HX711_ADC
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h> // LiquidCrystal_I2C library
@@ -108,6 +110,10 @@ float init_(){
   float data_prev = 200;
   char datat[7];
 
+  
+  // lcd_print("¿De que material",0,0,true);
+  // lcd_print("es la muestra?",1,1);
+
   // Obtain sample mass
   while (true){
     LoadCell.update();
@@ -122,6 +128,8 @@ float init_(){
       lcd_print(datat,6,1);
       lcd.print("g");
       sample_mass = data;
+      Serial.println("sample"); // Tell py to listen for the sample mass
+      Serial.println(sample_mass);
       delay(3000);
       break;
     }
@@ -193,23 +201,32 @@ void loop() {
     Serial.println("start");
   }
 
-  // Temporary -- to activate leiden signal 85 seconds in
-  if (currentMillis > 85000 && d==false){
-    Leidenfrost = true;
-    d = true;
+  // Listens for when py sends the Leidenfrost signal
+  if (Serial.available() > 0){
+    String incoming = Serial.readString();
+    if (incoming == "leiden") {
+      tstop = currentMillis + dT; // If python detects Leidenfrost, take data for dT more seconds
+    }
   }
 
-  // To be modified -- should activate when .py sends a leiden signal
-  if (Leidenfrost){
-    tstop = currentMillis + dT;
-    Leidenfrost = false;
-  }
+  // Temporary -- to activate leiden signal 85 seconds in
+  // if (currentMillis > 85000 && d==false){
+  //   Leidenfrost = true;
+  //   d = true;
+  // }
+
+  // // To be modified -- should activate when .py sends a leiden signal
+  // if (Leidenfrost){
+  //   tstop = currentMillis + dT;
+  //   Leidenfrost = false;
+  // }
 
   // Lowers the sample when dT seconds have passed (from when the exp. started)
   if (currentMillis > initMillis + dT && sample_up){
     stepper_move(-1,3,true); // ######## removing the sample_mass from the mass readings when halfway through the lowering (?) TBC #########################
     sample_up = false;       // ######## Maybe just add it on the last 2 revs? Maybe use a function? ############################3
     stepper_move(-1,3,true);
+    Serial.println("in");    // Let py know the sample has been submerged
   }
 
   if (currentMillis < tstop){ // takes data
@@ -231,8 +248,18 @@ void loop() {
     mass = LoadCell.getData();
     }
     stepper_move(-1);
+    
+    // Listens for py sending the calculated heat capacity
+    if (Serial.available() > 0){
+    String c = Serial.readString();
     while (true){
-      lcd_print(":)",7,1,true);
+      lcd_print("Cap. calorifica:",0,0,true);
+      lcd.setCursor(0, 1);
+      lcd.print(c);
+      }
     }
+    // while (true){
+    //   lcd_print(":)",7,1,true);
+    // }
   }
 }
