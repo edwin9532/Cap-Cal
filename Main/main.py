@@ -7,10 +7,12 @@ Created on Sun Jun 11 09:37:57 2023
 
 import serial
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.optimize import curve_fit
 
 
 # Set up for the data
-filename = 'data5.csv'
+filename = 'data.csv'
 
 ser = serial.Serial('COM3', 9600)
 print('Connection established')
@@ -19,7 +21,7 @@ print('Data file created')
 
 # Set up for heat capacity
 
-ma1 = 112.4110 # masa molar [g/mol]
+ma1 = 26.98153860 # masa molar [g/mol]
 
 L = 199 # Latent heat of N [J/g]
 TN = 77 # N temperature [K]
@@ -29,6 +31,8 @@ DeltaT = T0 - TN # temperature's difference
 
 err_mass = 0.1
 err_T = 1
+
+p_sample_down = 10000
 
 
 
@@ -43,11 +47,21 @@ def central_diff(x, y):
 def Leiden(d):
     # Maybe make the -0.11 value a variable? depending on the actual behaviour we see on the tests
     # Leiden
-    if (-0.11 < d[-1] < 0 and -0.11 < d[-2] < 0 and -0.11 < d[-3] < 0):
+    #print('derivadas: ',d[-1],d[-2],d[-3])
+    if (-0.125 < d[-1] < 0 and -0.125 < d[-2] < 0 and -0.125 < d[-3] < 0):
         leiden = True
+        print('True Liden ##########')
     else:
-        leiden = False        
+        leiden = False
+        print('False Liden ##########')
     return leiden
+
+
+def slope_change(d):
+    if (d[-1] > 0.5 and d[-2] > 0.5 and d[-3] > 0.5):
+        return True
+    else: return False
+
 
 # Linear function
 def linearf(x, a, b):
@@ -79,20 +93,36 @@ plt.ion()  # Turn on interactive mode
 
 t, m = [], [] # Lists for the sensor data
 find_leiden = False # Bool to know when to start searching for Leiden
+done = False
 
 # ---------------------------------- MAIN LOOP ----------------------------------
 while True:
     signal = ser.readline().decode().strip()
     # Get the sample mass that is sent from the arduino
     if signal == 'sample':
-        sample_mass = ser.readline().decode().strip()
+        sample_mass = float(ser.readline().decode().strip())
         
     if signal == 'start':
+        #print('Empezando')
         data = ser.readline().decode().strip()
         while data != 'end':
             
+            if len(t) > 10:
+                if np.array(t)[-1]>20:
+                    t_array = np.array(t)
+                    m_array = np.array(m)
+                    d = central_diff(t_array[-20::4],m_array[-20::4]) # Calculate derivatives of the data
+                    if slope_change(d) and not done:
+                        done = True
+                        p_sample_in = len(t)-16
+                        t_sample_in = t[-16]
+                        for ts in range(p_sample_in+1):
+                            m[ts] = m[ts] + sample_mass
+                
+            
             # Sample has gone in
             if data == 'in': # Signal for when the mass is submerged
+                print('Muestra dentro')
                 find_leiden = True # Activates Leiden search
                 p_sample_down = len(t) - 1 # Saves position at which this happened ###########################
                 t_sample_down = t[-1] # Saves time at which this happened
@@ -110,13 +140,17 @@ while True:
             m.append(newm)
             
             # Leidenfrost moment
-            if (find_leiden and len(t) > p_sample_down + 9): # At least a second after the sample went in (??)
-                d = central_diff(t[p_sample_down:],m[p_sample_down:]) # Calculate derivatives of the data
+            if (find_leiden and len(t) > p_sample_down + 100): # At least 10 seconds after the sample went in (??)
+                #print('Findddddd leidennnnnnnnnnn')
+                t_array = np.array(t)
+                m_array = np.array(m)
+                d = central_diff(t_array[p_sample_down::4],m_array[p_sample_down::4]) # Calculate derivatives of the data
                 if Leiden(d): # Leiden happens
                     p_leiden = len(t) - 4 # position on t at which it happened
                     t_leiden = t[-4] # t value at which it happened
                     find_leiden = False
-                    serial.write('leiden'.encode()) # Tell arduino it has happened
+                    print('Leidennnnnnn')
+                    ser.write('leiden'.encode()) # Tell arduino it has happened
             
             # Plot
             line.set_data(t[::4], m[::4])  # Update the line with new data
@@ -127,10 +161,15 @@ while True:
             data = ser.readline().decode().strip()
             print(data)
             
+        fig.savefig('data',dpi=400)
+        
+        plt.show()
+            
         # Data gathering has ended now. Calculate heat capacity
         
         # Linear fit for zone 1
-        popt1, pcov1 = curve_fit(linearf, xdata = t[:p_sample_down+1], ydata = m[:p_sample_down+1])
+        #popt1, pcov1 = curve_fit(linearf, xdata = t[:p_sample_down+1], ydata = m[:p_sample_down+1])
+        popt1, pcov1 = curve_fit(linearf, xdata = t[:p_sample_in+1], ydata = m[:p_sample_in+1])
         perr1 = np.sqrt(np.diag(pcov1))
         # R2_1 = 1-((np.sum((fopt1_1(df1_1[:,0])-df1_1[:,1])**2))/(np.var(df1_1[:,1])*df1_1.shape[0])) If we want this, modify df1
         
@@ -140,7 +179,8 @@ while True:
         # R2_2 = 1-((np.sum((fopt1_2(df1_2[:,0])-df1_2[:,1])**2))/(np.var(df1_2[:,1])*df1_2.shape[0])) If we want this, modify df1
         
         # Midpoint of zone 2
-        t_avg = 0.5*(t_sample_down + t_leiden) 
+        #t_avg = 0.5*(t_sample_down + t_leiden)
+        t_avg = 0.5*(t_sample_in + t_leiden) 
         
         # Change in mass
         deltaM = fopt(t_avg,popt1)-fopt(t_avg,popt2)
@@ -149,9 +189,9 @@ while True:
         c = (deltaM * L)/(sample_mass/ma1 * DeltaT)
         delta_c = c*(err_deltaM/deltaM + err_mass/sample_mass + err_T/DeltaT)
         
-        serial.write(str(c)+'+-'+str(delta_c))
-        
-    break
+        ser.write((str(round(c,2))+'+-'+str(round(delta_c,2))).encode())
+    
+        break
 
 
 ser.close()

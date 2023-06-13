@@ -13,8 +13,8 @@ int buttonval; // To store state of the button
 int prev_buttonval; // To store state of the button
 
 unsigned long initMillis; // to store initial time
-unsigned long tstop = 100000; // 30 * 60 * 1000; // large time to avoid the data meas. to stop
-unsigned long dT = 10000; // time for zone 1 and 3
+unsigned long tstop = 10000000; // 30 * 60 * 1000; // large time to avoid the data meas. to stop
+unsigned long dT = 20000; // time for zone 1 and 3
 
 float sample_mass;
 bool start = true; // Gives set-up condition
@@ -26,6 +26,8 @@ int stepsPerRevolution = 2048;
 int motSpeed = 16; // rpm
 int stepper = 13; // Pin for connecting or not the stepper
 Stepper myStepper(stepsPerRevolution,8,10,9,11);
+
+float i=0;
 
 // Declare functions to have the default parameters
 void lcd_print(char text[17], int column, int row, bool clear = false);
@@ -66,9 +68,15 @@ void print_data(){
   float data = LoadCell.getData();
   unsigned long currentMillis = millis();
 
-  if (sample_up){
-    data = data + sample_mass;
-  }
+  // if (sample_up){
+  //   data = data + sample_mass;
+  // }
+  // else{
+  //   if (i < sample_mass){
+  //     data = data + sample_mass - i;
+  //     i = i+0.2;
+  //   }
+  // }
 
   lcd_print("Tiempo: Masa:",0,0,true);
   float time = ((float)currentMillis-(float)initMillis)/1000; // Elpased time since beginning of the exp.
@@ -223,9 +231,9 @@ void loop() {
 
   // Lowers the sample when dT seconds have passed (from when the exp. started)
   if (currentMillis > initMillis + dT && sample_up){
-    stepper_move(-1,3,true); // ######## removing the sample_mass from the mass readings when halfway through the lowering (?) TBC #########################
-    sample_up = false;       // ######## Maybe just add it on the last 2 revs? Maybe use a function? ############################3
-    stepper_move(-1,3,true);
+    stepper_move(-1,4,true); // ######## removing the sample_mass from the mass readings when halfway through the lowering (?) TBC #########################
+    sample_up = false;      // ######## Maybe just add it on the last 2 revs? Maybe use a function? ############################3
+    stepper_move(-1,2,true);
     Serial.println("in");    // Let py know the sample has been submerged
   }
 
@@ -247,6 +255,8 @@ void loop() {
     LoadCell.update();
     mass = LoadCell.getData();
     }
+    lcd_print("Bajando",4,0,true);
+    lcd_print("muestra",4,1);
     stepper_move(-1);
     
     // Listens for py sending the calculated heat capacity
@@ -256,6 +266,7 @@ void loop() {
       lcd_print("Cap. calorifica:",0,0,true);
       lcd.setCursor(0, 1);
       lcd.print(c);
+      delay(150);
       }
     }
     // while (true){
