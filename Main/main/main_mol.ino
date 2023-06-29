@@ -68,16 +68,6 @@ void print_data(){
   float data = LoadCell.getData();
   unsigned long currentMillis = millis();
 
-  // if (sample_up){
-  //   data = data + sample_mass;
-  // }
-  // else{
-  //   if (i < sample_mass){
-  //     data = data + sample_mass - i;
-  //     i = i+0.2;
-  //   }
-  // }
-
   lcd_print("Tiempo: Masa:",0,0,true);
   float time = ((float)currentMillis-(float)initMillis)/1000; // Elpased time since beginning of the exp.
   lcd.setCursor(2, 1);
@@ -118,9 +108,20 @@ float init_(){
   float data_prev = 200;
   char datat[7];
 
-  
-  // lcd_print("¿De que material",0,0,true);
-  // lcd_print("es la muestra?",1,1);
+  while (true){
+  lcd_print("De que material",0,0,true);
+  lcd_print("es la muestra?",1,1);
+  if (Serial.available() > 0){
+    String sample_set = Serial.readString();
+    if (sample_set == "sample_set") {
+      lcd_print("Material de la",1,0,true);
+      lcd_print("muestra asignado",0,1);
+      delay(2000);
+      break;
+    }
+  }
+  delay(200);
+  }
 
   // Obtain sample mass
   while (true){
@@ -217,18 +218,6 @@ void loop() {
     }
   }
 
-  // Temporary -- to activate leiden signal 85 seconds in
-  // if (currentMillis > 85000 && d==false){
-  //   Leidenfrost = true;
-  //   d = true;
-  // }
-
-  // // To be modified -- should activate when .py sends a leiden signal
-  // if (Leidenfrost){
-  //   tstop = currentMillis + dT;
-  //   Leidenfrost = false;
-  // }
-
   // Lowers the sample when dT seconds have passed (from when the exp. started)
   if (currentMillis > initMillis + dT && sample_up){
     stepper_move(-1,4,true); // ######## removing the sample_mass from the mass readings when halfway through the lowering (?) TBC #########################
@@ -255,20 +244,26 @@ void loop() {
     LoadCell.update();
     mass = LoadCell.getData();
     }
-    lcd_print("Bajando",4,0,true);
-    lcd_print("muestra",4,1);
-    stepper_move(-1);
-    
+    // lcd_print("Bajando",4,0,true);
+    // lcd_print("muestra",4,1);
+
     // Listens for py sending the calculated heat capacity
     if (Serial.available() > 0){
     String c = Serial.readString();
-    while (true){
-      lcd_print("Cap. calorifica:",0,0,true);
-      lcd.setCursor(0, 1);
-      lcd.print(c);
-      delay(150);
-      }
+    lcd_print("Cap. calorifica:",0,0,true);
+    lcd.setCursor(0, 1);
+    lcd.print(c);
+    delay(150);
+    Serial.println("plot");
     }
+    //Lower the mass
+    stepper_move(-1);
+    // Stall the program
+    while (true){
+      continue;
+    }
+    
+
     // while (true){
     //   lcd_print(":)",7,1,true);
     // }
